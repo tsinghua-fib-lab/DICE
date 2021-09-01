@@ -17,7 +17,7 @@ from tester import Tester
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('name', 'MF-debug', 'Experiment name.')
-flags.DEFINE_enum('model', 'DICE', ['MF', 'DICE', 'LGN', 'LGNDICE'], 'Model name.')
+flags.DEFINE_enum('model', 'DICE', ['MF', 'DICE', 'IPS', 'LGN', 'LGNDICE', 'LGNIPS'], 'Model name.')
 flags.DEFINE_integer('num_layers', 2, 'The number of layers for LGN.')
 flags.DEFINE_float('dropout', 0.2, 'Dropout ratio for LGN.')
 flags.DEFINE_integer('margin', 40, 'Margin for negative sampling.')
@@ -25,6 +25,8 @@ flags.DEFINE_integer('pool', 40, 'Pool for negative sampling.')
 flags.DEFINE_bool('adaptive', False, 'Adapt hyper-parameters or not.')
 flags.DEFINE_float('margin_decay', 0.9, 'Decay of margin and pool.')
 flags.DEFINE_float('loss_decay', 0.9, 'Decay of loss.')
+flags.DEFINE_enum('weighting_mode', 'nc', ['n', 'c', 'nc', 'x'], 'Mode of IPS technique.')
+flags.DEFINE_float('weighting_smoothness', 1.0, 'IPS weighting smoothness.')
 flags.DEFINE_bool('use_gpu', True, 'Use GPU or not.')
 flags.DEFINE_integer('gpu_id', 6, 'GPU ID.')
 flags.DEFINE_bool('cg_use_gpu', True, 'Use GPU or not for candidate generation.')

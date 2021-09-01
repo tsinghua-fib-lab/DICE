@@ -128,6 +128,27 @@ class MFRecommender(Recommender):
         return self.generator.generate(self.user_embeddings[users], topk)
 
 
+class IPSRecommender(MFRecommender):
+
+    def __init__(self, flags_obj, workspace, dm):
+
+        super(IPSRecommender, self).__init__(flags_obj, workspace, dm)
+        self.dm.get_skew_dataset()
+
+    def get_ips_pair_dataloader(self):
+
+        return data.FactorizationDataProcessor.get_ips_blend_pair_dataloader(self.flags_obj, self.dm)
+
+    def pair_inference(self, sample):
+
+        user, item_p, item_n, weight = sample
+        sample_wrap = (user, item_p, item_n)
+        p_score, n_score = super(IPSRecommender, self).pair_inference(sample_wrap)
+        weight = weight.to(self.device)
+
+        return p_score, n_score, weight
+
+
 class LGNRecommender(MFRecommender):
 
     def __init__(self, flags_obj, workspace, dm):
@@ -171,6 +192,26 @@ class LGNRecommender(MFRecommender):
 
         self.item_embeddings, self.user_embeddings = self.model.get_embeddings(self.graph)
         self.generator = cg.FaissInnerProductMaximumSearchGenerator(self.flags_obj, self.item_embeddings)
+
+
+class LGNIPSRecommender(LGNRecommender):
+
+    def __init__(self, flags_obj, workspace, dm):
+
+        super(LGNIPSRecommender, self).__init__(flags_obj, workspace, dm)
+
+    def get_ips_pair_dataloader(self):
+
+        return data.FactorizationDataProcessor.get_ips_blend_pair_dataloader(self.flags_obj, self.dm)
+
+    def pair_inference(self, sample):
+
+        user, item_p, item_n, weight = sample
+        sample_wrap = (user, item_p, item_n)
+        p_score, n_score = super(LGNIPSRecommender, self).pair_inference(sample_wrap)
+        weight = weight.to(self.device)
+
+        return p_score, n_score, weight
 
 
 class DICERecommender(MFRecommender):

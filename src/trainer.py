@@ -214,6 +214,35 @@ class PairTrainer(Trainer):
         return -torch.mean(torch.log(torch.sigmoid(p_score - n_score)))
 
 
+class IPSPairTrainer(PairTrainer):
+
+    def __init__(self, flags_obj, cm, vm, dm):
+
+        super(IPSPairTrainer, self).__init__(flags_obj, cm, vm, dm)
+
+    def set_dataloader(self):
+
+        self.dataloader = self.recommender.get_ips_pair_dataloader()
+
+    def get_loss(self, sample, batch_count):
+
+        p_score, n_score, weight = self.recommender.pair_inference(sample)
+
+        self.distances[batch_count] = (p_score - n_score).mean().item()
+
+        loss = self.pair_loss(p_score, n_score, weight)
+
+        return loss
+
+    def bpr_loss(self, p_score, n_score, weight):
+
+        loss = torch.log(torch.sigmoid(p_score - n_score))
+        loss = loss*weight
+        loss = -loss.mean()
+
+        return loss
+
+
 class DICETrainer(Trainer):
 
     def __init__(self, flags_obj, cm, vm, dm):

@@ -99,7 +99,9 @@ class ContextManager(object):
     @staticmethod
     def set_trainer(flags_obj, cm, vm, dm):
 
-        if 'DICE' not in flags_obj.model:
+        if 'IPS' in flags_obj.model:
+            return trainer.IPSPairTrainer(flags_obj, cm, vm, dm)
+        elif 'DICE' not in flags_obj.model:
             return trainer.PairTrainer(flags_obj, cm, vm, dm)
         else:
             return trainer.DICETrainer(flags_obj, cm, vm, dm)
@@ -111,10 +113,14 @@ class ContextManager(object):
             return recommender.MFRecommender(flags_obj, workspace, dm)
         elif flags_obj.model == 'DICE':
             return recommender.DICERecommender(flags_obj, workspace, dm)
+        elif flags_obj.model == 'IPS':
+            return recommender.IPSRecommender(flags_obj, workspace, dm)
         elif flags_obj.model == 'LGN':
             return recommender.LGNRecommender(flags_obj, workspace, dm)
         elif flags_obj.model == 'LGNDICE':
             return recommender.LGNDICERecommender(flags_obj, workspace, dm)
+        elif flags_obj.model == 'LGNIPS':
+            return recommender.LGNIPSRecommender(flags_obj, workspace, dm)
 
     @staticmethod
     def set_device(flags_obj):

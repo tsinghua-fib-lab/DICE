@@ -32,6 +32,13 @@ class FactorizationDataProcessor(object):
         return DataLoader(dataset, batch_size=flags_obj.batch_size, shuffle=flags_obj.shuffle, num_workers=flags_obj.num_workers, drop_last=True)
 
     @staticmethod
+    def get_ips_blend_pair_dataloader(flags_obj, dm):
+
+        dataset = IPSBlendPairFactorizationDataset(flags_obj, dm)
+
+        return DataLoader(dataset, batch_size=flags_obj.batch_size, shuffle=flags_obj.shuffle, num_workers=flags_obj.num_workers, drop_last=True)
+
+    @staticmethod
     def get_DICE_dataloader(flags_obj, dm):
 
         dataset = DICEFactorizationDataset(flags_obj, dm)
@@ -103,6 +110,67 @@ class BlendPairFactorizationDataset(FactorizationDataset):
     def adapt(self, epoch, decay):
 
         pass
+
+
+class IPSBlendPairFactorizationDataset(FactorizationDataset):
+
+    def __init__(self, flags_obj, dm):
+
+        super(IPSBlendPairFactorizationDataset, self).__init__(flags_obj, dm)
+        self.get_weight(flags_obj, dm)
+
+    def get_weight(self, flags_obj, dm):
+
+        pop = self.get_popularity(dm)
+        pop = np.clip(pop, 1, pop.max() + 1)
+        pop = pop/np.linalg.norm(pop, ord=np.inf)
+        pop = 1/pop
+
+        if 'c' in flags_obj.weighting_mode:
+            pop = np.clip(pop, 1, np.median(pop))
+        if 'n' in flags_obj.weighting_mode:
+            pop = pop/np.linalg.norm(pop, ord=np.inf)
+
+        if flags_obj.weighting_smoothness != 1.0:
+            pop = pop**flags_obj.weighting_smoothness
+            pop = pop/np.linalg.norm(pop, ord=np.inf)
+
+        self.weight = pop.astype(np.float32)
+
+    def get_popularity(self, dm):
+
+        return dm.get_blend_popularity()
+
+    def make_sampler(self, flags_obj, dm):
+
+        transformer = TRANSFORMER.SparseTransformer(flags_obj)
+
+        train_coo_record = dm.coo_record
+        train_lil_record = transformer.coo2lil(train_coo_record)
+        train_dok_record = transformer.coo2dok(train_coo_record)
+
+        self.sampler = SAMPLER.PairSampler(flags_obj, train_lil_record, train_dok_record, flags_obj.neg_sample_rate)
+
+        train_skew_coo_record = dm.skew_coo_record
+        train_skew_lil_record = transformer.coo2lil(train_skew_coo_record)
+        train_skew_dok_record = transformer.coo2dok(train_skew_coo_record)
+
+        self.skew_sampler = SAMPLER.PairSampler(flags_obj, train_skew_lil_record, train_skew_dok_record, flags_obj.neg_sample_rate)
+
+    def __len__(self):
+
+        return len(self.sampler.record) + len(self.skew_sampler.record)
+
+    def __getitem__(self, index):
+
+        if index < len(self.sampler.record):
+            users, items_pos, items_neg = self.sampler.sample(index)
+        else:
+            users, items_pos, items_neg = self.skew_sampler.sample(index - len(self.sampler.record))
+
+        weight = self.weight[items_pos]
+
+        return users, items_pos, items_neg, weight
 
 
 class DICEFactorizationDataset(FactorizationDataset):
