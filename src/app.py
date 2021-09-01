@@ -17,7 +17,7 @@ from tester import Tester
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('name', 'MF-debug', 'Experiment name.')
-flags.DEFINE_enum('model', 'DICE', ['MF', 'DICE', 'IPS', 'LGN', 'LGNDICE', 'LGNIPS'], 'Model name.')
+flags.DEFINE_enum('model', 'DICE', ['MF', 'DICE', 'IPS', 'CausE', 'LGN', 'LGNDICE', 'LGNIPS', 'LGNCausE'], 'Model name.')
 flags.DEFINE_integer('num_layers', 2, 'The number of layers for LGN.')
 flags.DEFINE_float('dropout', 0.2, 'Dropout ratio for LGN.')
 flags.DEFINE_integer('margin', 40, 'Margin for negative sampling.')

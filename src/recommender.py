@@ -149,6 +149,52 @@ class IPSRecommender(MFRecommender):
         return p_score, n_score, weight
 
 
+class CausERecommender(Recommender):
+
+    def __init__(self, flags_obj, workspace, dm):
+
+        super(CausERecommender, self).__init__(flags_obj, workspace, dm)
+        self.dm.get_skew_dataset()
+
+    def set_model(self):
+
+        self.model = model.CausE(self.dm.n_user, self.dm.n_item, self.flags_obj.embedding_size)
+
+    def get_point_dataloader(self):
+
+        return data.FactorizationDataProcessor.get_CausE_dataloader(self.flags_obj, self.dm)
+
+    def get_optimizer(self):
+
+        return optim.Adam(self.model.parameters(), lr=self.flags_obj.lr, weight_decay=self.flags_obj.weight_decay, betas=(0.5, 0.99), amsgrad=True)
+
+    def get_loss(self, sample):
+
+        user, item, label, mask = sample
+
+        user = user.to(self.device)
+        item = item.to(self.device)
+        label = label.to(self.device)
+        mask = torch.squeeze(mask)
+        mask = mask.to(self.device)
+
+        control_loss, treatment_loss, discrepency_loss, control_distance, treatment_distance = self.model(user, item, label, mask)
+        loss = control_loss + treatment_loss + self.flags_obj.dis_pen*discrepency_loss
+
+        return loss, control_loss, treatment_loss, discrepency_loss, control_distance, treatment_distance
+
+    def make_cg(self):
+
+        self.item_embeddings = self.model.get_item_control_embeddings()
+        self.generator = cg.FaissInnerProductMaximumSearchGenerator(self.flags_obj, self.item_embeddings)
+
+        self.user_embeddings = self.model.get_user_embeddings()
+
+    def cg(self, users, topk):
+
+        return self.generator.generate(self.user_embeddings[users], topk)
+
+
 class LGNRecommender(MFRecommender):
 
     def __init__(self, flags_obj, workspace, dm):

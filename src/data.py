@@ -39,6 +39,13 @@ class FactorizationDataProcessor(object):
         return DataLoader(dataset, batch_size=flags_obj.batch_size, shuffle=flags_obj.shuffle, num_workers=flags_obj.num_workers, drop_last=True)
 
     @staticmethod
+    def get_CausE_dataloader(flags_obj, dm):
+
+        dataset = CausEFactorizationDataset(flags_obj, dm)
+
+        return DataLoader(dataset, batch_size=flags_obj.batch_size, shuffle=flags_obj.shuffle, num_workers=flags_obj.num_workers, drop_last=True)
+
+    @staticmethod
     def get_DICE_dataloader(flags_obj, dm):
 
         dataset = DICEFactorizationDataset(flags_obj, dm)
@@ -171,6 +178,44 @@ class IPSBlendPairFactorizationDataset(FactorizationDataset):
         weight = self.weight[items_pos]
 
         return users, items_pos, items_neg, weight
+
+
+class CausEFactorizationDataset(FactorizationDataset):
+
+    def __init__(self, flags_obj, dm):
+
+        super(CausEFactorizationDataset, self).__init__(flags_obj, dm)
+
+    def make_sampler(self, flags_obj, dm):
+
+        transformer = TRANSFORMER.SparseTransformer(flags_obj)
+
+        train_coo_record = dm.coo_record
+        train_lil_record = transformer.coo2lil(train_coo_record)
+        train_dok_record = transformer.coo2dok(train_coo_record)
+
+        self.sampler = SAMPLER.PointSampler(flags_obj, train_lil_record, train_dok_record, flags_obj.neg_sample_rate)
+
+        train_skew_coo_record = dm.skew_coo_record
+        train_skew_lil_record = transformer.coo2lil(train_skew_coo_record)
+        train_skew_dok_record = transformer.coo2dok(train_skew_coo_record)
+
+        self.skew_sampler = SAMPLER.PointSampler(flags_obj, train_skew_lil_record, train_skew_dok_record, flags_obj.neg_sample_rate)
+
+    def __len__(self):
+
+        return len(self.sampler.record) + len(self.skew_sampler.record)
+
+    def __getitem__(self, index):
+
+        if index < len(self.sampler.record):
+            users, items, labels = self.sampler.sample(index)
+            mask = torch.BoolTensor([False])
+        else:
+            users, items, labels = self.skew_sampler.sample(index - len(self.sampler.record))
+            mask = torch.BoolTensor([True])
+
+        return users, items, labels, mask
 
 
 class DICEFactorizationDataset(FactorizationDataset):

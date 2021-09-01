@@ -243,6 +243,104 @@ class IPSPairTrainer(PairTrainer):
         return loss
 
 
+class CausETrainer(Trainer):
+
+    def __init__(self, flags_obj, cm, vm, dm):
+
+        super(CausETrainer, self).__init__(flags_obj, cm, vm, dm)
+
+    def set_dataloader(self):
+
+        self.dataloader = self.recommender.get_point_dataloader()
+
+    def train_one_epoch_core(self, epoch, dataloader, optimizer, lr):
+
+        start_time = time.time()
+        running_loss = 0.0
+        running_control_loss = 0.0
+        running_treatment_loss = 0.0
+        running_discrepency_loss = 0.0
+
+        total_loss = 0.0
+        total_control_loss = 0.0
+        total_treatment_loss = 0.0
+        total_discrepency_loss = 0.0
+
+        num_batch = len(dataloader)
+        self.control_distances = np.zeros(num_batch)
+        self.treatment_distances = np.zeros(num_batch)
+
+        current_lr = optimizer.param_groups[0]['lr']
+        if current_lr < lr:
+
+            lr = current_lr
+            logging.info('reducing learning rate!')
+
+        logging.info('learning rate : {}'.format(lr))
+
+        for batch_count, sample in enumerate(tqdm(dataloader)):
+
+            optimizer.zero_grad()
+
+            loss, control_loss, treatment_loss, discrepency_loss = self.get_loss(sample, batch_count)
+
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+            running_control_loss += control_loss.item()
+            running_treatment_loss += treatment_loss.item()
+            running_discrepency_loss += discrepency_loss.item()
+
+            total_loss += loss.item()
+            total_control_loss += control_loss.item()
+            total_treatment_loss += treatment_loss.item()
+            total_discrepency_loss += discrepency_loss.item()
+
+            if batch_count % 1000 == 0:
+                self.vm.step_update_line('loss every 1k step', loss.item())
+                self.vm.step_update_line('control loss every 1k step', control_loss.item())
+                self.vm.step_update_line('treatment loss every 1k step', treatment_loss.item())
+                self.vm.step_update_line('discrepency loss every 1k step', discrepency_loss.item())
+
+            if batch_count % (num_batch // 5) == num_batch // 5 - 1:
+
+                logging.info('epoch {}: running loss = {}'.format(epoch, running_loss / (num_batch // 5)))
+                logging.info('epoch {}: running control loss = {}'.format(epoch, running_control_loss / (num_batch // 5)))
+                logging.info('epoch {}: running treatment loss = {}'.format(epoch, running_treatment_loss / (num_batch // 5)))
+                logging.info('epoch {}: running discrepency loss = {}'.format(epoch, running_discrepency_loss / (num_batch // 5)))
+
+                running_loss = 0.0
+                running_control_loss = 0.0
+                running_treatment_loss = 0.0
+                running_discrepency_loss = 0.0
+
+        logging.info('epoch {}: total loss = {}'.format(epoch, total_loss))
+        logging.info('epoch {}: total control loss = {}'.format(epoch, total_control_loss))
+        logging.info('epoch {}: total treatment loss = {}'.format(epoch, total_treatment_loss))
+        logging.info('epoch {}: total discrepency loss = {}'.format(epoch, total_discrepency_loss))
+        self.vm.step_update_line('epoch loss', total_loss)
+        self.vm.step_update_line('epoch control loss', total_control_loss)
+        self.vm.step_update_line('epoch treatment loss', total_treatment_loss)
+        self.vm.step_update_line('epoch discrepency loss', total_discrepency_loss)
+        self.vm.step_update_line('control distance', self.control_distances.mean())
+        self.vm.step_update_line('treatment distance', self.treatment_distances.mean())
+
+        time_cost = time.time() - start_time
+        self.vm.step_update_line('train time cost', time_cost)
+
+        return lr
+
+    def get_loss(self, sample, batch_count):
+
+        loss, control_loss, treatment_loss, discrepency_loss, control_distance, treatment_distance = self.recommender.get_loss(sample)
+
+        self.control_distances[batch_count] = control_distance
+        self.treatment_distances[batch_count] = treatment_distance
+
+        return loss, control_loss, treatment_loss, discrepency_loss
+
+
 class DICETrainer(Trainer):
 
     def __init__(self, flags_obj, cm, vm, dm):

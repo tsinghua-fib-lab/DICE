@@ -67,6 +67,66 @@ class MF(nn.Module):
         return self.users.detach().cpu().numpy().astype('float32')
 
 
+class CausE(nn.Module):
+
+    def __init__(self, num_users, num_items, embedding_size):
+
+        super(CausE, self).__init__()
+
+        self.users = Parameter(torch.FloatTensor(num_users, embedding_size))
+        self.items_control = Parameter(torch.FloatTensor(num_items, embedding_size))
+        self.items_treatment = Parameter(torch.FloatTensor(num_items, embedding_size))
+
+        self.criterion_factual = nn.BCEWithLogitsLoss()
+        self.criterion_counterfactual = nn.MSELoss()
+
+        self.init_params()
+
+    def init_params(self):
+
+        stdv = 1. / math.sqrt(self.users.size(1))
+        self.users.data.uniform_(-stdv, stdv)
+        self.items_control.data.uniform_(-stdv, stdv)
+        self.items_treatment.data.uniform_(-stdv, stdv)
+
+    def forward(self, user, item, label, mask):
+
+        user_control = self.users[user[~mask]]
+        item_control = self.items_control[item[~mask]]
+        score_control = torch.sum(user_control * item_control, 2)
+        label_control = label[~mask]
+        control_loss = self.criterion_factual(score_control, label_control)
+
+        control_distance = (torch.sigmoid(score_control) - label_control).abs().mean().item()
+
+        user_treatment = self.users[user[mask]]
+        item_treatment = self.items_treatment[item[mask]]
+        score_treatment = torch.sum(user_treatment * item_treatment, 2)
+        label_treatment = label[mask]
+        treatment_loss = self.criterion_factual(score_treatment, label_treatment)
+
+        treatment_distance = (torch.sigmoid(score_treatment) - label_treatment).abs().mean().item()
+
+        item_all = torch.unique(item)
+        item_control_factual = self.items_control[item_all]
+        item_control_counterfactual = self.items_treatment[item_all]
+        discrepency_loss = self.criterion_counterfactual(item_control_factual, item_control_counterfactual)
+
+        return control_loss, treatment_loss, discrepency_loss, control_distance, treatment_distance
+
+    def get_item_control_embeddings(self):
+
+        return self.items_control.detach().cpu().numpy().astype('float32')
+
+    def get_item_treatment_embeddings(self):
+
+        return self.items_treatment.detach().cpu().numpy().astype('float32')
+
+    def get_user_embeddings(self):
+
+        return self.users.detach().cpu().numpy().astype('float32')
+
+
 class LGConv(nn.Module):
 
     def __init__(self,

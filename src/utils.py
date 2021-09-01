@@ -101,6 +101,8 @@ class ContextManager(object):
 
         if 'IPS' in flags_obj.model:
             return trainer.IPSPairTrainer(flags_obj, cm, vm, dm)
+        elif 'CausE' in flags_obj.model:
+            return trainer.CausETrainer(flags_obj, cm, vm, dm)
         elif 'DICE' not in flags_obj.model:
             return trainer.PairTrainer(flags_obj, cm, vm, dm)
         else:
@@ -115,6 +117,8 @@ class ContextManager(object):
             return recommender.DICERecommender(flags_obj, workspace, dm)
         elif flags_obj.model == 'IPS':
             return recommender.IPSRecommender(flags_obj, workspace, dm)
+        elif flags_obj.model == 'CausE':
+            return recommender.CausERecommender(flags_obj, workspace, dm)
         elif flags_obj.model == 'LGN':
             return recommender.LGNRecommender(flags_obj, workspace, dm)
         elif flags_obj.model == 'LGNDICE':
