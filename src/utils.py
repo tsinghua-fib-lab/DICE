@@ -103,10 +103,10 @@ class ContextManager(object):
             return trainer.IPSPairTrainer(flags_obj, cm, vm, dm)
         elif 'CausE' in flags_obj.model:
             return trainer.CausETrainer(flags_obj, cm, vm, dm)
-        elif 'DICE' not in flags_obj.model:
-            return trainer.PairTrainer(flags_obj, cm, vm, dm)
-        else:
+        elif 'DICE' in flags_obj.model:
             return trainer.DICETrainer(flags_obj, cm, vm, dm)
+        else:
+            return trainer.PairTrainer(flags_obj, cm, vm, dm)
 
     @staticmethod
     def set_recommender(flags_obj, workspace, dm):
@@ -125,6 +125,8 @@ class ContextManager(object):
             return recommender.LGNDICERecommender(flags_obj, workspace, dm)
         elif flags_obj.model == 'LGNIPS':
             return recommender.LGNIPSRecommender(flags_obj, workspace, dm)
+        elif flags_obj.model == 'LGNCausE':
+            return recommender.LGNCausERecommender(flags_obj, workspace, dm)
 
     @staticmethod
     def set_device(flags_obj):

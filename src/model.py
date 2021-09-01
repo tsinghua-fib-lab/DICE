@@ -127,6 +127,105 @@ class CausE(nn.Module):
         return self.users.detach().cpu().numpy().astype('float32')
 
 
+class LGNCausE(nn.Module):
+
+    def __init__(self, num_users, num_items, embedding_size, num_layers, dropout):
+
+        super(LGNCausE, self).__init__()
+
+        self.n_user = num_users
+        self.n_item = num_items
+
+        self.embeddings_control = Parameter(torch.FloatTensor(num_users + num_items, embedding_size))
+        self.embeddings_treatment = Parameter(torch.FloatTensor(num_users + num_items, embedding_size))
+
+        self.layers_control = nn.ModuleList()
+        for _ in range(num_layers):
+            self.layers_control.append(LGConv(embedding_size, embedding_size, 1))
+
+        self.layers_treatment = nn.ModuleList()
+        for _ in range(num_layers):
+            self.layers_treatment.append(LGConv(embedding_size, embedding_size, 1))
+
+        self.dropout = dropout
+
+        self.criterion_factual = nn.BCEWithLogitsLoss()
+        self.criterion_counterfactual = nn.MSELoss()
+
+        self.init_params()
+
+    def init_params(self):
+
+        stdv = 1. / math.sqrt(self.embeddings_control.size(1))
+        self.embeddings_control.data.uniform_(-stdv, stdv)
+        self.embeddings_treatment.data.uniform_(-stdv, stdv)
+
+    def forward(self, user, item, label, mask, graph_control, graph_treatment, training=True):
+
+        features_control = [self.embeddings_control]
+        h_control = self.embeddings_control
+        for layer in self.layers_control:
+            h_control = layer(graph_control, h_control)
+            h_control = F.dropout(h_control, p=self.dropout, training=training)
+            features_control.append(h_control)
+
+        features_control = torch.stack(features_control, dim=2)
+        features_control = torch.mean(features_control, dim=2)
+
+        features_treatment = [self.embeddings_treatment]
+        h_treatment = self.embeddings_treatment
+        for layer in self.layers_treatment:
+            h_treatment = layer(graph_treatment, h_treatment)
+            h_treatment = F.dropout(h_treatment, p=self.dropout, training=training)
+            features_treatment.append(h_treatment)
+
+        features_treatment = torch.stack(features_treatment, dim=2)
+        features_treatment = torch.mean(features_treatment, dim=2)
+
+        item = item + self.n_user
+
+        user_control = features_control[user[~mask]]
+        item_control = features_control[item[~mask]]
+        score_control = torch.sum(user_control * item_control, 2)
+        label_control = label[~mask]
+        control_loss = self.criterion_factual(score_control, label_control)
+
+        control_distance = (torch.sigmoid(score_control) - label_control).abs().mean().item()
+
+        user_treatment = features_treatment[user[mask]]
+        item_treatment = features_treatment[item[mask]]
+        score_treatment = torch.sum(user_treatment * item_treatment, 2)
+        label_treatment = label[mask]
+        treatment_loss = self.criterion_factual(score_treatment, label_treatment)
+
+        treatment_distance = (torch.sigmoid(score_treatment) - label_treatment).abs().mean().item()
+
+        user_control_factual = features_control[user]
+        user_control_counterfactual = features_treatment[user]
+        item_control_factual = features_control[item]
+        item_control_counterfactual = features_treatment[item]
+        discrepency_loss = self.criterion_counterfactual(user_control_factual, user_control_counterfactual) + self.criterion_counterfactual(item_control_factual, item_control_counterfactual)
+
+        return control_loss, treatment_loss, discrepency_loss, control_distance, treatment_distance
+
+
+    def get_control_embeddings(self, graph):
+
+        features = [self.embeddings_control]
+        h = self.embeddings_control
+        for layer in self.layers_control:
+            h = layer(graph, h)
+            features.append(h)
+
+        features = torch.stack(features, dim=2)
+        features = torch.mean(features, dim=2)
+
+        users = features[:self.n_user]
+        items = features[self.n_user:]
+
+        return items.detach().cpu().numpy().astype('float32'), users.detach().cpu().numpy().astype('float32')
+
+
 class LGConv(nn.Module):
 
     def __init__(self,

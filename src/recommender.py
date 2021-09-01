@@ -195,6 +195,68 @@ class CausERecommender(Recommender):
         return self.generator.generate(self.user_embeddings[users], topk)
 
 
+class LGNCausERecommender(CausERecommender):
+
+    def __init__(self, flags_obj, workspace, dm):
+
+        super(LGNCausERecommender, self).__init__(flags_obj, workspace, dm)
+        self.init_graph(flags_obj)
+
+    def init_graph(self, flags_obj):
+
+        coo_loader = LOADER.CooLoader(flags_obj)
+
+        self.coo_adj_graph = coo_loader.load(const_util.train_coo_adj_graph)
+
+        self.graph_control = dgl.DGLGraph()
+
+        num_nodes = self.coo_adj_graph.shape[0]
+        self.graph_control.add_nodes(num_nodes)
+        self.graph_control.ndata['feature'] = torch.arange(num_nodes)
+
+        self.graph_control.add_edges(self.coo_adj_graph.row, self.coo_adj_graph.col)
+        self.graph_control.add_edges(self.graph_control.nodes(), self.graph_control.nodes())
+
+        self.graph_control.readonly()
+
+        self.skew_coo_adj_graph = coo_loader.load(const_util.train_skew_coo_adj_graph)
+
+        self.graph_treatment = dgl.DGLGraph()
+
+        num_nodes = self.skew_coo_adj_graph.shape[0]
+        self.graph_treatment.add_nodes(num_nodes)
+        self.graph_treatment.ndata['feature'] = torch.arange(num_nodes)
+
+        self.graph_treatment.add_edges(self.skew_coo_adj_graph.row, self.skew_coo_adj_graph.col)
+        self.graph_treatment.add_edges(self.graph_treatment.nodes(), self.graph_treatment.nodes())
+
+        self.graph_treatment.readonly()
+
+    def set_model(self):
+
+        self.model = model.LGNCausE(self.dm.n_user, self.dm.n_item, self.flags_obj.embedding_size, self.flags_obj.num_layers, self.flags_obj.dropout)
+
+    def get_loss(self, sample):
+
+        user, item, label, mask = sample
+
+        user = user.to(self.device)
+        item = item.to(self.device)
+        label = label.to(self.device)
+        mask = torch.squeeze(mask)
+        mask = mask.to(self.device)
+
+        control_loss, treatment_loss, discrepency_loss, control_distance, treatment_distance = self.model(user, item, label, mask, self.graph_control, self.graph_treatment)
+        loss = control_loss + treatment_loss + self.flags_obj.dis_pen*discrepency_loss
+
+        return loss, control_loss, treatment_loss, discrepency_loss, control_distance, treatment_distance
+
+    def make_cg(self):
+
+        self.item_embeddings, self.user_embeddings = self.model.get_control_embeddings(self.graph_control)
+        self.generator = cg.FaissInnerProductMaximumSearchGenerator(self.flags_obj, self.item_embeddings)
+
+
 class LGNRecommender(MFRecommender):
 
     def __init__(self, flags_obj, workspace, dm):
