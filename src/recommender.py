@@ -413,3 +413,31 @@ class LGNDICERecommender(DICERecommender):
     def adapt(self, epoch, decay):
 
         self.model.adapt(epoch, decay)
+
+
+class PopularityRecommender(Recommender):
+
+    def __init__(self, flags_obj, workspace, dm):
+
+        super(PopularityRecommender, self).__init__(flags_obj, workspace, dm)
+
+    def set_model(self):
+
+        pass
+
+    def transfer_model(self):
+
+        pass
+
+    def load_ckpt(self, epoch):
+
+        pass
+
+    def make_cg(self):
+
+        popularity = self.dm.get_popularity()
+        self.generator = cg.PopularityGenerator(self.flags_obj, popularity, 500)
+
+    def cg(self, users, topk):
+
+        return self.generator.generate(users, topk) 
