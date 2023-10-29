@@ -3,7 +3,7 @@ This is the official implementation of our WWW'21 paper:
 
 Yu Zheng, Chen Gao, Xiang Li, Xiangnan He, Depeng Jin, Yong Li, **Disentangling User Interest and Conformity for Recommendation with Causal Embedding**, In Proceedings of the Web Conference 2021.
 
-***
+## Model training
 First unzip the datasets and start the visdom server:
 ```
 visdom -port 33336
@@ -14,6 +14,20 @@ Then simply run the following command to reproduce the experiments on correspond
 python app.py --flagfile ./config/xxx.cfg
 ```
 
+## Embedding visualization
+The visualization codes to reproduce Figure 5(b) and Figure 7 can be found in the `viz` folder.
+
+First, reduce the dimension of the embedding vectors to 2D using t-SNE (remember to change the path to the model checkpoint in `viz.py`):
+```python
+python viz.py
+```
+
+Then, visualize the 2D embedding vectors using MATLAB:
+```matlab
+embedding_viz.m
+```
+
+## Citation
 If you use our codes and datasets in your research, please cite:
 ```
 @inproceedings{zheng2021disentangling,
