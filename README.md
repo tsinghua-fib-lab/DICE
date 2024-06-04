@@ -27,6 +27,10 @@ Then, visualize the 2D embedding vectors using MATLAB:
 embedding_viz.m
 ```
 
+## Dataset processing
+The dataset process codes are in this [repo](https://github.com/DavyMorgan/dps).
+Please check this [issue](https://github.com/tsinghua-fib-lab/DICE/issues/1#issuecomment-903234948) for more details.
+
 ## Citation
 If you use our codes and datasets in your research, please cite:
 ```
